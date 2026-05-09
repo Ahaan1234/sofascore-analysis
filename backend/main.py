@@ -1,7 +1,14 @@
 from fastapi import FastAPI
 from enum import Enum
+from pydantic import BaseModel
 
 app = FastAPI()
+
+class Item(BaseModel):
+    name: str
+    description: str | None = None
+    price: float
+    tax: float | None = None
 
 @app.get("/")
 async def root():
@@ -9,6 +16,8 @@ async def root():
 
 @app.get("/items/{item_id}")
 async def read_item(item_id: str, q: str | None = None, short: bool = False):
+#             {item_id} is a path parameter     `q`, `short` are query parameters. query params with a default value are optional, without a default value are NECESSARY.
+#                                                q: str | None = None reads as "q is of type string or None, with a default value of None"
     item = {"item_id": item_id}
     if q:
         item.update({"q": q})
@@ -17,6 +26,20 @@ async def read_item(item_id: str, q: str | None = None, short: bool = False):
             {"description": "This is an amazing item that has a long description"}
         )
     return item
+
+@app.post("/items/")
+async def create_item(item: Item):
+    item_dict=item.model_dump()
+    if item.tax is not None:
+        price_with_tax = item.price + item.tax
+        item_dict.update({"price_with_tax": price_with_tax})
+
+    return item_dict
+
+@app.put("/items/{item_id}")
+async def update_item(item_id: int, item: Item):
+    return {"item_id": item_id, **item.model_dump()}
+
 
 class ModelName(str, Enum):
     alexnet = "alexnet"
@@ -35,6 +58,6 @@ async def get_model(model_name: ModelName):
 
 fake_items_db = [{"item_name": "Foo"}, {"item_name": "Bar"}, {"item_name": "Baz"}]
 
-@app.get("/items/")
-async def read_item(skip: int = 0, limit: int = 10):
-    return fake_items_db[skip : skip + limit]
+# @app.get("/items/")
+# async def read_item(skip: int = 0, limit: int = 10):
+#     return fake_items_db[skip : skip + limit]
