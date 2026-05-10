@@ -37,18 +37,26 @@ def get_match_detail(eventID: str):
     url = f"{SOFASCORE}/event/{eventID}"
     r = requests.get(url, headers=HEADERS)
 
-    events = r.json().get("events",[])
-    for event in events:
-        if event["id"] == eventID:
-            break
+    event = r.json().get("event", {})
+    if not event:
+        return {"error": f"event {eventID} not found"}
     
     return {
         "home_team" : event["homeTeam"]["name"],
         "away_team" : event["awayTeam"]["name"],
-        "home_score": (event.get("homeScore",{}).get("current"),event.get("homeScore",{}).get("period1"),event.get("homeScore",{}).get("period2")),
-        "away_score": (event.get("awayScore",{}).get("current"),event.get("awayScore",{}).get("period1"),event.get("awayScore",{}).get("period2")),
-        "status"    : event.get("status",{}).get("description"),
-        "venue"    : event.get("status",{}).get("description")
+        "home_score": {
+            "current": event.get("homeScore",{}).get("current"),
+            "period1": event.get("homeScore",{}).get("period1"),
+            "period2": event.get("homeScore",{}).get("period2")
+        },
+        "away_score": {
+            "current": event.get("awayScore",{}).get("current"),
+            "period1": event.get("awayScore",{}).get("period1"),
+            "period2": event.get("awayScore",{}).get("period2")
+        },
+        "status"  : event.get("status",{}).get("description"),
+        "venue"   : event.get("venue",{}).get("stadium",{}).get("name"),
+        "referee" : event.get("referee",{}).get("name")
     }
 
 # get_incidents — takes an eventId, returns a cleaned timeline of goals, cards, and substitutions with minutes. 
@@ -57,7 +65,7 @@ def get_match_detail(eventID: str):
 def get_incidents(eventID: str):
     url = f"{SOFASCORE}/event/{eventID}/incidents"
     r = requests.get(url, headers=HEADERS)
-    
+
 
 # get_momentum — takes an eventId, returns the per-minute dominance summary (home vs away controlled minutes, momentum swings). 
 # Calls /event/{eventId}/graph
