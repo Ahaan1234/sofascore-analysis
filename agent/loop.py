@@ -1,16 +1,8 @@
 import os
 from dotenv import load_dotenv
 from groq import Groq
-import asyncio
 
 load_dotenv()
-
-async def main():
-    client = Groq(
-        api_key=os.environ.get("GROQ_API_KEY"),
-    )
-
-
 
 from groq import Groq
 
@@ -31,10 +23,32 @@ chat_completion = client.chat.completions.create(
         # Set a user message for the assistant to respond to.
         {
             "role": "user",
-            "content": "Count to 10.  Your response must begin with \"1; \".  example: 1; 2; 3; ...",
+            "content": "Whats the weather like in North Carolina?",
         }
     ],
-    stop = "6",
+    tools=[{
+        "type": "function",
+        "function": {
+        "name": "get_current_weather",
+        "description":"Get the current weather in a given location",
+        "parameters": {
+        "type": "object",
+        "properties": {
+            "location": {
+                "type": "string",
+                "description": "The city and state, e.g. San Francisco, CA"
+            },
+            "unit": {
+                "type": "string",
+                "enum": ["celsius", "fahrenheit"]
+            }
+        },
+        "required": ["location"]
+        }
+        }
+    }
+    ],
+    tool_choice="auto",
     # The language model which will generate the completion.
     model="llama-3.3-70b-versatile",
 )
