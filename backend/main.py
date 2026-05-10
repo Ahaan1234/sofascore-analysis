@@ -1,63 +1,24 @@
 from fastapi import FastAPI
-from enum import Enum
-from pydantic import BaseModel
+from datetime import date
+import requests
 
-app = FastAPI()
-
-class Item(BaseModel):
-    name: str
-    description: str | None = None
-    price: float
-    tax: float | None = None
-
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-@app.get("/items/{item_id}")
-async def read_item(item_id: str, q: str | None = None, short: bool = False):
-#             {item_id} is a path parameter     `q`, `short` are query parameters. query params with a default value are optional, without a default value are NECESSARY.
-#                                                q: str | None = None reads as "q is of type string or None, with a default value of None"
-    item = {"item_id": item_id}
-    if q:
-        item.update({"q": q})
-    if not short:
-        item.update(
-            {"description": "This is an amazing item that has a long description"}
-        )
-    return item
-
-@app.post("/items/")
-async def create_item(item: Item):
-    item_dict=item.model_dump()
-    if item.tax is not None:
-        price_with_tax = item.price + item.tax
-        item_dict.update({"price_with_tax": price_with_tax})
-
-    return item_dict
-
-@app.put("/items/{item_id}")
-async def update_item(item_id: int, item: Item):
-    return {"item_id": item_id, **item.model_dump()}
+SOFASCORE = "https://api.sofascore.com/api/v1"
+HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
 
 
-class ModelName(str, Enum):
-    alexnet = "alexnet"
-    resnet = "resnet"
-    lenet = "lenet"
 
-@app.get("/models/{model_name}")
-async def get_model(model_name: ModelName):
-    if model_name is ModelName.alexnet:
-        return {"model_name": model_name, "message": "Deep Learning FTW!"}
 
-    if model_name.value == "lenet":
-        return {"model_name": model_name, "message": "LeCNN all the images"}
+# -- TEST SCRIPTS --
+# r = requests.get('https://api.sofascore.com/api/v1/sport/football/scheduled-events/2024-04-10',
+#                  headers={"User-Agent": "Mozilla/5.0"})
 
-    return {"model_name": model_name, "message": "Have some residuals"}
+# print(r.status_code)
+# print(type(r.text))
+# print(r.text[:500])
 
-fake_items_db = [{"item_name": "Foo"}, {"item_name": "Bar"}, {"item_name": "Baz"}]
+# data:dict = r.json()
+# print(data.keys())
 
-# @app.get("/items/")
-# async def read_item(skip: int = 0, limit: int = 10):
-#     return fake_items_db[skip : skip + limit]
+# events = data.get("events",[])
+# print(f"Found {len(events)} matches")
+# print(events[0])
