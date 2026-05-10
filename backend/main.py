@@ -62,9 +62,50 @@ def get_match_detail(eventID: str):
 # get_incidents — takes an eventId, returns a cleaned timeline of goals, cards, and substitutions with minutes. 
 # Calls /event/{eventId}/incidents
 @app.get("/get_incidents/{eventID}")
-def get_incidents(eventID: str):
+def get_incidents(eventID: int):
     url = f"{SOFASCORE}/event/{eventID}/incidents"
     r = requests.get(url, headers=HEADERS)
+
+    incidents = r.json().get("incidents", {})
+    if not incidents:
+        return {"error": f"Event {eventID} not found"}
+    
+    goals = []
+    cards = []
+    subs  = []
+    incident:dict
+
+    for incident in incidents:
+        side = "home" if incident.get("isHome") else "away"
+
+        if incident.get("incidentType") == "goal":
+            goals.append({
+                "minute": incident.get("time"),
+                "added_time": incident.get("addedTime"),
+                "side":   side,
+                "scorer": incident.get("player", {}).get("name"),
+                "assist": incident.get("assist1", {}).get("name")  # None if no assist
+            })
+
+        elif incident.get("incidentType") == "card":
+            cards.append({
+                "minute": incident.get("time"),
+                "side":   side,
+                "player": incident.get("player", {}).get("name"),
+                "card":   incident.get("incidentClass")  # "yellow" or "red"
+            })
+
+        elif incident.get("incidentType") == "substitution":
+            subs.append({
+                "minute":     incident.get("time"),
+                "side":       side,
+                "player_off": incident.get("playerOut", {}).get("name"),
+                "player_on":  incident.get("playerIn",  {}).get("name"),
+                "injury":     incident.get("injury", False)
+            })
+
+    return {"goals": goals, "cards": cards, "substitutions": subs}
+
 
 
 # get_momentum — takes an eventId, returns the per-minute dominance summary (home vs away controlled minutes, momentum swings). 
