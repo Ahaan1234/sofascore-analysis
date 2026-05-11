@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from groq import Groq
+import json
 
 load_dotenv()
 
@@ -8,50 +9,96 @@ from groq import Groq
 
 client = Groq()
 
-chat_completion = client.chat.completions.create(
-    #
-    # Required parameters
-    #
-    messages=[
-        # Set an optional system message. This sets the behavior of the
-        # assistant and can be used to provide specific instructions for
-        # how it should behave throughout the conversation.
+def calculate(expression:str) -> str:
+    """Execute the calculation"""
+    try:
+        result = eval(expression)
+        return str(result)
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+available_functions = {
+    "calculate": calculate,
+}
+
+def execute_tool_call(tool_call):
+    """Parse and execute a single tool call"""
+    function_name = tool_call.function.name
+    function_to_call = available_functions[function_name]
+    function_args = json.loads(tool_call.function.arguments)
+
+    return function_to_call(**function_args)
+
+def run_conversation(user_prompt):
+    """Run a conversation with tool calling"""
+    client_messages = [
         {
             "role": "system",
-            "content": "You are a helpful assistant."
+            "content": "You are a calculator assistant. Use the calculate function to perform mathematical operations and provide the results."
         },
-        # Set a user message for the assistant to respond to.
         {
             "role": "user",
-            "content": "Whats the weather like in North Carolina?",
+            "content": user_prompt,
         }
-    ],
-    tools=[{
+    ]
+
+    calculate_tool_schema=[{
         "type": "function",
         "function": {
-        "name": "get_current_weather",
-        "description":"Get the current weather in a given location",
-        "parameters": {
-        "type": "object",
-        "properties": {
-            "location": {
+            "name": "calculate",
+            "description": "Evaluate a mathematical expression",
+            "parameters": {
+            "type": "object",
+            "properties": {
+                "expression": {
                 "type": "string",
-                "description": "The city and state, e.g. San Francisco, CA"
+                "description": "The mathematical expression to evaluate"
+                }
             },
-            "unit": {
-                "type": "string",
-                "enum": ["celsius", "fahrenheit"]
+            "required": ["expression"]
             }
-        },
-        "required": ["location"]
         }
-        }
-    }
-    ],
-    tool_choice="auto",
-    # The language model which will generate the completion.
-    model="llama-3.3-70b-versatile",
-)
+    }]
+
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=client_messages,
+        tools=calculate_tool_schema,
+        tool_choice="auto"
+    )
+
+    response_message = response.choices[0].message
+    tool_calls = response_message.tool_calls
+
+    client_messages.append(response.choices[0].message)
+
+    if tool_calls:
+        for tool_call in tool_calls:
+            for tool_call in tool_calls:
+                function_name = tool_call.function.name
+                function_to_call = available_functions[function_name]
+                function_args = json.loads(tool_call.function.arguments)
+                function_response = function_to_call(
+                    expression=function_args.get("expression")
+                )
+                
+                # Add tool response to conversation
+                client_messages.append({
+                    "tool_call_id": tool_call.id,
+                    "role": "tool",
+                    "name": function_name,
+                    "content": function_response,
+                })
+        
+        second_response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=client_messages
+        )
+        return second_response.choices[0].message.content
+    
+    return response_message.content
 
 
-print(chat_completion.choices[0].message.content)
+user_prompt = "What is 25 * 4 + 10?"
+print(run_conversation(user_prompt))
+

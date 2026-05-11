@@ -1,0 +1,8 @@
+- Set up a FastAPI server from scratch
+- Learned how HTTP GET requests work by querying the SofaScore API
+- Explored POST/PUT calls to understand the full HTTP verb spectrum
+- Refactored experiments into a separate file to keep code organized
+- Built reusable Python wrapper functions around the raw SofaScore API calls
+- Debugged a broken wrapper and fixed it through iteration
+- Introduced the Groq API to start working with LLMs
+- Currently learning tool-calling — wiring the LLM to invoke your SofaScore wrappers autonomously
