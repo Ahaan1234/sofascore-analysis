@@ -2,39 +2,89 @@ import os
 from dotenv import load_dotenv
 from groq import Groq
 import json
+import requests
 
 load_dotenv()
 
-from groq import Groq
-
 client = Groq()
 
-def calculate(expression:str) -> str:
-    """Execute the calculation"""
-    try:
-        result = eval(expression)
-        return str(result)
-    except Exception as e:
-        return f"Error: {str(e)}"
+BACKEND = "http://localhost:8000"
 
-available_functions = {
-    "calculate": calculate,
+# Tools whose eventID is a path param, not a query param
+PATH_PARAM_TOOLS = {
+    "get_match_detail": "eventID",
+    "get_incidents":    "eventID",
 }
 
-def execute_tool_call(tool_call):
-    """Parse and execute a single tool call"""
-    function_name = tool_call.function.name
-    function_to_call = available_functions[function_name]
-    function_args = json.loads(tool_call.function.arguments)
+tools: list = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_matches",
+            "description": "Returns all football matches scheduled on a given date with scores and team IDs.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "match_date": {
+                        "type": "string",
+                        "description": "Date in YYYY-MM-DD format"
+                    }
+                },
+                "required": ["match_date"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_match_detail",
+            "description": "Returns the full match summary for a given event: score by period, venue, referee, and teams.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "eventID": {
+                        "type": "string",
+                        "description": "Sofascore event ID of the match"
+                    }
+                },
+                "required": ["eventID"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_incidents",
+            "description": "Returns a cleaned timeline of goals, cards, and substitutions with their minute for a match.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "eventID": {
+                        "type": "string",
+                        "description": "Sofascore event ID of the match"
+                    }
+                },
+                "required": ["eventID"]
+            }
+        }
+    },
+]
 
-    return function_to_call(**function_args)
 
-def run_conversation(user_prompt):
-    """Run a conversation with tool calling"""
-    client_messages = [
+def call_backend(tool_name: str, args: dict) -> str:
+    if tool_name in PATH_PARAM_TOOLS:
+        path_value = args[PATH_PARAM_TOOLS[tool_name]]
+        r = requests.get(f"{BACKEND}/{tool_name}/{path_value}")
+    else:
+        r = requests.get(f"{BACKEND}/{tool_name}", params=args)
+    return json.dumps(r.json())
+
+
+def run_conversation(user_prompt: str):
+    messages: list = [
         {
             "role": "system",
-            "content": "You are a calculator assistant. Use the calculate function to perform mathematical operations and provide the results."
+            "content": "You are an AI assistant that helps find information about football matches. Use the available functions to look up matches on a date, match details, and match incidents."
         },
         {
             "role": "user",
@@ -42,63 +92,32 @@ def run_conversation(user_prompt):
         }
     ]
 
-    calculate_tool_schema=[{
-        "type": "function",
-        "function": {
-            "name": "calculate",
-            "description": "Evaluate a mathematical expression",
-            "parameters": {
-            "type": "object",
-            "properties": {
-                "expression": {
-                "type": "string",
-                "description": "The mathematical expression to evaluate"
-                }
-            },
-            "required": ["expression"]
-            }
-        }
-    }]
-
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=client_messages,
-        tools=calculate_tool_schema,
-        tool_choice="auto"
-    )
-
-    response_message = response.choices[0].message
-    tool_calls = response_message.tool_calls
-
-    client_messages.append(response.choices[0].message)
-
-    if tool_calls:
-        for tool_call in tool_calls:
-            for tool_call in tool_calls:
-                function_name = tool_call.function.name
-                function_to_call = available_functions[function_name]
-                function_args = json.loads(tool_call.function.arguments)
-                function_response = function_to_call(
-                    expression=function_args.get("expression")
-                )
-                
-                # Add tool response to conversation
-                client_messages.append({
-                    "tool_call_id": tool_call.id,
-                    "role": "tool",
-                    "name": function_name,
-                    "content": function_response,
-                })
-        
-        second_response = client.chat.completions.create(
+    while True:
+        response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
-            messages=client_messages
+            messages=messages,
+            tools=tools,
+            tool_choice="auto"
         )
-        return second_response.choices[0].message.content
-    
-    return response_message.content
+
+        message = response.choices[0].message
+        messages.append(message)
+
+        if message.tool_calls is None:
+            print(message.content)
+            break
+
+        for tool_call in message.tool_calls:
+            tool_name = tool_call.function.name
+            args = json.loads(tool_call.function.arguments)
+            result = call_backend(tool_name, args)
+
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": result,
+            })
 
 
-user_prompt = "What is 25 * 4 + 10?"
-print(run_conversation(user_prompt))
-
+user_prompt = input("Ask about football: ")
+run_conversation(user_prompt)

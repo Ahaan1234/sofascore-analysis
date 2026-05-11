@@ -7,10 +7,17 @@ app = FastAPI()
 SOFASCORE = "https://api.sofascore.com/api/v1"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
-# get_matches — takes a date (YYYY-MM-DD), returns all football matches on that day with scores and team IDs. 
-# Calls /sport/football/scheduled-events/{date}
 @app.get("/get_matches")
-def get_matches(match_date: date, league: str | None = None):
+def get_matches(match_date: date):
+    """Returns all football matches scheduled on a given date with scores and team IDs.
+
+    Args:
+        match_date: Date in YYYY-MM-DD format.
+
+    Returns:
+        dict with date, match_count, and a list of matches (event_id, slug, home/away team,
+        home/away score, status, tournament).
+    """
     url = f"{SOFASCORE}/sport/football/scheduled-events/{match_date}"
     r = requests.get(url, headers=HEADERS)
     events = r.json().get("events",[])
@@ -30,10 +37,17 @@ def get_matches(match_date: date, league: str | None = None):
     
     return {"date": match_date, "match_count": len(matches), "matches": matches}
 
-# get_match_detail — takes an eventId, returns the full match summary: score by period, venue, referee, home/away teams. 
-# Calls /event/{eventId}
 @app.get("/get_match_detail/{eventID}")
 def get_match_detail(eventID: str):
+    """Returns the full match summary for a given event: score by period, venue, referee, and teams.
+
+    Args:
+        eventID: Sofascore event ID.
+
+    Returns:
+        dict with home/away team names, scores (current, period1, period2), status, venue, and referee.
+        Returns an error dict if the event is not found.
+    """
     url = f"{SOFASCORE}/event/{eventID}"
     r = requests.get(url, headers=HEADERS)
 
@@ -59,10 +73,19 @@ def get_match_detail(eventID: str):
         "referee" : event.get("referee",{}).get("name")
     }
 
-# get_incidents — takes an eventId, returns a cleaned timeline of goals, cards, and substitutions with minutes. 
-# Calls /event/{eventId}/incidents
 @app.get("/get_incidents/{eventID}")
 def get_incidents(eventID: int):
+    """Returns a cleaned timeline of goals, cards, and substitutions with their minute for a match.
+
+    Args:
+        eventID: Sofascore event ID.
+
+    Returns:
+        dict with three lists — goals (minute, added_time, side, scorer, assist),
+        cards (minute, side, player, card type), and substitutions (minute, side,
+        player_off, player_on, injury flag).
+        Returns an error dict if the event is not found.
+    """
     url = f"{SOFASCORE}/event/{eventID}/incidents"
     r = requests.get(url, headers=HEADERS)
 
@@ -107,10 +130,6 @@ def get_incidents(eventID: int):
     return {"goals": goals, "cards": cards, "substitutions": subs}
 
 
-
-# get_momentum — takes an eventId, returns the per-minute dominance summary (home vs away controlled minutes, momentum swings). 
-# Calls /event/{eventId}/graph
-    
 
 
 
