@@ -8,7 +8,7 @@ SOFASCORE = "https://api.sofascore.com/api/v1"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
 @app.get("/get_matches")
-def get_matches(match_date: date):
+def get_matches(match_date: date, limit: int = 20):
     """Returns all football matches scheduled on a given date with scores and team IDs.
 
     Args:
@@ -35,6 +35,7 @@ def get_matches(match_date: date):
             "tournament": event.get("tournament", {}).get("name")
         })
     
+    matches = matches[:limit]
     return {"date": match_date, "match_count": len(matches), "matches": matches}
 
 @app.get("/get_match_detail/{eventID}")

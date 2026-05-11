@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from groq import Groq
+from groq import Groq, BadRequestError
 import json
 import requests
 
@@ -21,13 +21,17 @@ tools: list = [
         "type": "function",
         "function": {
             "name": "get_matches",
-            "description": "Returns all football matches scheduled on a given date with scores and team IDs.",
+            "description": "Returns football matches scheduled on a given date with scores and team IDs. Use limit to control how many matches are returned (default 20, max sensible value ~50).",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "match_date": {
                         "type": "string",
                         "description": "Date in YYYY-MM-DD format"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max number of matches to return (default 20)"
                     }
                 },
                 "required": ["match_date"]
@@ -93,12 +97,19 @@ def run_conversation(user_prompt: str):
     ]
 
     while True:
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=messages,
-            tools=tools,
-            tool_choice="auto"
-        )
+        for attempt in range(3):
+            try:
+                response = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=messages,
+                    tools=tools,
+                    tool_choice="auto"
+                )
+                break
+            except BadRequestError as e:
+                if e.status_code == 400 and "tool_use_failed" in str(e) and attempt < 2:
+                    continue
+                raise
 
         message = response.choices[0].message
         messages.append(message)
